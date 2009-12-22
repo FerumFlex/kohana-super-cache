@@ -13,12 +13,14 @@ class Super_Cache {
 	protected $_directory = '';
 	protected $_filename = '';
 	
-	public $lifetime = 3600;
+	public $lifetime;
 	
-	public function __construct()
+	public function __construct($lifetime = 3600)
 	{
 		if (Kohana::$caching)
 		{
+			$this->lifetime = $lifetime;
+		
 			$request = Request::instance();
 			$uri = $request->directory.'.'.$request->controller.'.'.$request->action;
 			$name = $uri.'.php';
@@ -79,7 +81,7 @@ class Super_Cache {
 		}
 		
 		if ( ! is_dir($this->_directory))
-			mkdir($this->_directory, 0777);
+			mkdir($this->_directory, 0777, TRUE);
 		
 		file_put_contents($this->_directory.$this->_filename, implode('', $files));
 	}
