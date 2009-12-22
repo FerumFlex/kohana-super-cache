@@ -1,8 +1,4 @@
 <?php defined('SYSPATH') or die('No direct script access.');
-/**
- * @package		AltConstructor
- * @author		Anton <anton@altsolution.net>
- */
 
 class Super_Cache {
 	
