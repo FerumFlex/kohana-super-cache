@@ -6,46 +6,71 @@
 
 class Super_Cache {
 	
-	public static $_run_first = TRUE;
-	public static $_classes = array();
-	public static $_uri = '';
-	public static $_cached = FALSE;
+	protected $_run_first = TRUE;
+	protected $_classes = array();
+	protected $_cached = FALSE;
 	
-	public static function auto_load($class)
+	protected $_directory = '';
+	protected $_filename = '';
+	
+	public $lifetime = 3600;
+	
+	public function __construct()
 	{
-		if (self::$_run_first)
+		if (Kohana::$caching)
 		{
-			self::$_run_first = FALSE;
+			$request = Request::instance();
+			$uri = $request->directory.'.'.$request->controller.'.'.$request->action;
+			$name = $uri.'.php';
 			
-			$file = self::$_uri.'.php';
-			$dir = Kohana::$cache_dir.'/cache/';
-			
-			if (is_file($dir.$file))
-			{
-				self::$_cached = TRUE;
-				require $dir.$file;
-				self::$_classes[$class] = $class;
-			}
-			
-			if (class_exists($class))
-				return TRUE;
-		}
+			$this->_filename = sha1($name).'.php';
+			// Cache directories are split by keys to prevent filesystem overload
+			$this->_directory = Kohana::$cache_dir.DIRECTORY_SEPARATOR.'cache'.DIRECTORY_SEPARATOR.$this->_filename[0].$this->_filename[1].DIRECTORY_SEPARATOR;
 		
+			spl_autoload_unregister(array('Kohana', 'auto_load'));
+			spl_autoload_register(array($this, 'auto_load'));
+			register_shutdown_function(array($this, 'shutdown_handler'));
+		}
+	}
+	
+	public function auto_load($class)
+	{
+		if ($this->_run_first)
+		{
+			$this->_run_first = FALSE;
+			
+			if (is_file($this->_directory.$this->_filename))
+			{
+				
+				if ((time() - filemtime($this->_directory.$this->_filename)) < $this->lifetime)
+				{
+					$this->_cached = TRUE;
+					require $this->_directory.$this->_filename;
+					$this->_classes[$class] = $class;
+					
+					if (class_exists($class))
+						return TRUE;
+				} else {
+					// Cache has expired
+					unlink($this->_directory.$this->_filename);
+				}
+			}
+		}
 		
 		$result =  Kohana::auto_load($class);
 		
-		self::$_classes[$class] = $class;
+		$this->_classes[$class] = $class;
 		
 		return $result;
 	}
 	
-	public static function shutdown_handler()
+	public function shutdown_handler()
 	{
-		if (self::$_cached)
+		if ($this->_cached)
 			return;
-	
+		
 		$files = array();
-		foreach (self::$_classes as $class)
+		foreach ($this->_classes as $class)
 		{
 			$file = str_replace('_', '/', strtolower($class));
 			
@@ -53,18 +78,9 @@ class Super_Cache {
 				$files[] = file_get_contents($path).'?>';
 		}
 		
-		$file = self::$_uri.'.php';
-		$dir = Kohana::$cache_dir.'/cache/';
+		if ( ! is_dir($this->_directory))
+			mkdir($this->_directory, 0777);
 		
-		if ( ! is_dir($dir))
-			mkdir($dir, 0777);
-		
-		file_put_contents($dir.$file, implode('', $files));
+		file_put_contents($this->_directory.$this->_filename, implode('', $files));
 	}
 }
-
-Super_Cache::$_uri = trim(str_replace('/', '_', $_SERVER['REQUEST_URI']), '_');
-
-spl_autoload_unregister(array('Kohana', 'auto_load'));
-spl_autoload_register(array('Super_Cache', 'auto_load'));
-register_shutdown_function(array('Super_Cache', 'shutdown_handler'));
