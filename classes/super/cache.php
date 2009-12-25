@@ -9,24 +9,44 @@ class Super_Cache {
 	protected $_directory = '';
 	protected $_filename = '';
 	
-	public $lifetime;
+	protected $_lifetime;
 	
-	public function __construct($lifetime = 3600)
+	protected static $_instance = NULL;
+	
+	public static function instance($uri = NULL, $lifetime = 3600)
+	{
+		if (self::$_instance)
+		{
+			self::$_instance->save_cache();
+		}
+		
+		self::$_instance = new Super_Cache($uri, $lifetime);
+		
+		return self::$_instance;
+	}
+	
+	public function __construct($uri = NULL, $lifetime = 3600)
 	{
 		if (Kohana::$caching)
 		{
 			$this->lifetime = $lifetime;
 		
-			$request = Request::instance();
-			$uri = $request->directory.'.'.$request->controller.'.'.$request->action;
-			$name = $uri.'.php';
+			// get string, describing request
+			if (empty($uri))
+			{
+				$request = Request::instance();
+				$uri = $request->directory.'.'.$request->controller.'.'.$request->action;
+			}
 			
-			$this->_filename = sha1($name).'.php';
+			$this->_filename = $uri.'.php';
 			// Cache directories are split by keys to prevent filesystem overload
-			$this->_directory = Kohana::$cache_dir.DIRECTORY_SEPARATOR.'cache'.DIRECTORY_SEPARATOR.$this->_filename[0].$this->_filename[1].DIRECTORY_SEPARATOR;
+			$this->_directory = Kohana::$cache_dir.DIRECTORY_SEPARATOR.'cache'.DIRECTORY_SEPARATOR;
 		
+			// replace kohana auto load function
 			spl_autoload_unregister(array('Kohana', 'auto_load'));
 			spl_autoload_register(array($this, 'auto_load'));
+			
+			// when all done. write files
 			register_shutdown_function(array($this, 'shutdown_handler'));
 		}
 	}
@@ -39,11 +59,12 @@ class Super_Cache {
 			
 			if (is_file($this->_directory.$this->_filename))
 			{
-				
+				// cache expired?
 				if ((time() - filemtime($this->_directory.$this->_filename)) < $this->lifetime)
 				{
 					$this->_cached = TRUE;
 					require $this->_directory.$this->_filename;
+					
 					$this->_classes[$class] = $class;
 					
 					if (class_exists($class))
@@ -62,10 +83,20 @@ class Super_Cache {
 		return $result;
 	}
 	
+	public function save_cache()
+	{
+		spl_autoload_unregister(array($this, 'auto_load'));
+		spl_autoload_register(array('Kohana', 'auto_load'));
+		
+		$this->shutdown_handler();
+	}
+	
 	public function shutdown_handler()
 	{
-		if ($this->_cached)
+		if ($this->_cached OR ! $this->_classes)
 			return;
+		
+		$this->_cached = TRUE;
 		
 		$files = array();
 		foreach ($this->_classes as $class)
