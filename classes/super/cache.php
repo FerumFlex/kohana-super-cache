@@ -11,6 +11,8 @@ class Super_Cache {
 	
 	protected $_lifetime;
 	
+	public static $loaded_classes = array();
+	
 	protected static $_instance = NULL;
 	
 	public static function instance($uri = NULL, $lifetime = 3600)
@@ -66,6 +68,7 @@ class Super_Cache {
 					require $this->_directory.$this->_filename;
 					
 					$this->_classes[$class] = $class;
+					self::$loaded_classes[$class] = $class;
 					
 					if (class_exists($class))
 						return TRUE;
@@ -79,6 +82,7 @@ class Super_Cache {
 		$result =  Kohana::auto_load($class);
 		
 		$this->_classes[$class] = $class;
+		self::$loaded_classes[$class] = $class;
 		
 		return $result;
 	}
@@ -104,7 +108,7 @@ class Super_Cache {
 			$file = str_replace('_', '/', strtolower($class));
 			
 			if ($path = Kohana::find_file('classes', $file))
-				$files[] = "<?php if ( ! class_exists('$class')):?>".file_get_contents($path).'?><?php endif ?>';
+				$files[] = '<?php if ( ! isset(Super_Cache::$loaded_classes[\''.$class.'\'])):?>'.file_get_contents($path).'?>'.'<?php endif?>';
 		}
 		
 		if ( ! is_dir($this->_directory))
