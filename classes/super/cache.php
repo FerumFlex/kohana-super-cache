@@ -104,7 +104,7 @@ class Super_Cache {
 			$file = str_replace('_', '/', strtolower($class));
 			
 			if ($path = Kohana::find_file('classes', $file))
-				$files[] = "<?php if ( ! class_exists('$class')):?>".file_get_contents($path).'<?php endif?> ?>';
+				$files[] = "<?php if ( ! class_exists('$class')):?>".file_get_contents($path).'?><?php endif ?>';
 		}
 		
 		if ( ! is_dir($this->_directory))
