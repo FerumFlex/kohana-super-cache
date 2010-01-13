@@ -11,7 +11,7 @@ class Super_Cache {
 	
 	protected $_lifetime;
 	
-	public static $loaded_classes = array();
+	public static $loaded_classes = array();   
 	
 	protected static $_instance = NULL;
 	
@@ -79,7 +79,7 @@ class Super_Cache {
 			}
 		}
 		
-		$result =  Kohana::auto_load($class);
+		$result = Kohana::auto_load($class);
 		
 		$this->_classes[$class] = $class;
 		self::$loaded_classes[$class] = $class;
@@ -97,10 +97,15 @@ class Super_Cache {
 	
 	public function shutdown_handler()
 	{
-		if ($this->_cached OR ! $this->_classes)
+		if ($this->_cached OR empty($this->_classes))
 			return;
 		
+		if ( ! is_dir($this->_directory))
+			mkdir($this->_directory, 0777, TRUE);
+		
 		$this->_cached = TRUE;
+		
+		$result = fopen ($this->_directory.$this->_filename, "w");
 		
 		$files = array();
 		foreach ($this->_classes as $class)
@@ -108,12 +113,15 @@ class Super_Cache {
 			$file = str_replace('_', '/', strtolower($class));
 			
 			if ($path = Kohana::find_file('classes', $file))
-				$files[] = '<?php if ( ! isset(Super_Cache::$loaded_classes[\''.$class.'\'])):?>'.file_get_contents($path).'?>'.'<?php endif?>';
+			{
+				$src = fopen ($path, "r");
+				fwrite($result, '<?php if ( ! isset(Super_Cache::$loaded_classes[\''.$class.'\'])):?>');
+				stream_copy_to_stream ($src, $result);
+				fwrite($result, '?><?php endif?>');
+				fclose($src);
+			}
 		}
 		
-		if ( ! is_dir($this->_directory))
-			mkdir($this->_directory, 0777, TRUE);
-		
-		file_put_contents($this->_directory.$this->_filename, implode('', $files));
+		fclose ($result);
 	}
 }
